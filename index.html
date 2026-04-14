@@ -2,88 +2,224 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Controle ESP32</title>
-  <script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+  <title>Controle MQTT - Samuel</title>
+
+  <!-- MQTT -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
 
   <style>
     body {
-      font-family: Arial;
-      text-align: center;
-      background: #0f172a;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
       color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+      padding: 30px;
+      border-radius: 20px;
+      width: 320px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      align-self: center;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    #status {
+      font-size: 14px;
+      margin-bottom: 20px;
+      opacity: 0.8;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.08);
+      padding: 15px;
+      border-radius: 15px;
+      margin: 15px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .label {
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    /* SWITCH */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+
+    .switch input {
+      display: none;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #555;
+      border-radius: 34px;
+      transition: 0.3s;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    input:checked + .slider {
+      background-color: #22c55e;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+
+    .vermelho input:checked + .slider {
+      background-color: #ef4444;
+    }
+
+    /* INPUT TEXTO */
+    .input-area {
+      margin-top: 20px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      margin-bottom: 10px;
+      font-size: 14px;
     }
 
     button {
-      padding: 15px 25px;
-      margin: 10px;
-      font-size: 16px;
-      border: none;
+      width: 100%;
+      padding: 10px;
       border-radius: 10px;
+      border: none;
+      background: #3b82f6;
+      color: white;
+      font-weight: bold;
       cursor: pointer;
+      transition: 0.3s;
     }
 
-    .on { background: #22c55e; }
-    .off { background: #ef4444; }
-
-    #status {
-      margin-top: 20px;
-      font-size: 18px;
-      color: #38bdf8;
+    button:hover {
+      background: #2563eb;
     }
+
   </style>
 </head>
 
 <body>
 
-  <h2>Controle de LEDs (ESP32)</h2>
+  <div class="container">
+    <h2>Controle MQTT</h2>
+    <p id="status">Conectando...</p>
 
-  <h3>LED 1</h3>
-  <button class="on" onclick="enviar('samuel_esp32/led1','1')">Ligar</button>
-  <button class="off" onclick="enviar('samuel_esp32/led1','0')">Desligar</button>
+    <!-- LED VERDE -->
+    <div class="card">
+      <span class="label">LED Verde</span>
+      <label class="switch">
+        <input type="checkbox" onchange="toggleLED(this, 'samuel/ledVerde')">
+        <span class="slider"></span>
+      </label>
+    </div>
 
-  <h3>LED 2</h3>
-  <button class="on" onclick="enviar('samuel_esp32/led2','1')">Ligar</button>
-  <button class="off" onclick="enviar('samuel_esp32/led2','0')">Desligar</button>
+    <!-- LED VERMELHO -->
+    <div class="card vermelho">
+      <span class="label">LED Vermelho</span>
+      <label class="switch">
+        <input type="checkbox" onchange="toggleLED(this, 'samuel/ledVermelho')">
+        <span class="slider"></span>
+      </label>
+    </div>
 
-  <div id="status">Status: Desconectado</div>
+    <!-- TEXTO -->
+    <div class="input-area">
+      <input type="text" id="textoInput" placeholder="Digite o texto...">
+      <button onclick="enviarTexto()">Enviar para Display</button>
+    </div>
+
+  </div>
 
   <script>
-    // 🔐 CONFIGURAÇÃO
-    const endpoint = "broker.hivemq.com "; // ex: abc123.s1.eu.hivemq.cloud
-    const clientId = "clientId-Bt855pO2q6";
+    const clientID = "samuel_" + Math.random().toString(16).substr(2, 8);
 
-    const client = new Paho.MQTT.Client(endpoint, 8884, clientId);
+    const client = new Paho.Client(
+      "broker.emqx.io",
+      8083,
+      clientID
+    );
 
-    // 📡 RECEBER mensagens
-    client.onMessageArrived = function(message) {
-      const statusDiv = document.getElementById("status");
-      statusDiv.innerHTML = "Status: " + message.payloadString;
+    client.onConnectionLost = function() {
+      document.getElementById("status").innerText = "Conexão perdida ❌";
     };
 
-    // 🔌 CONECTAR
     client.connect({
-      userName: "samuel",
-      password: "123454",
-      useSSL: true,
-
-      onSuccess: () => {
-        console.log("Conectado 🔐");
-        document.getElementById("status").innerHTML = "Status: Conectado";
-
-        // 🔔 Escuta o status do ESP
-        client.subscribe("samuel_esp32/status");
+      cleanSession: true,
+      onSuccess: function() {
+        document.getElementById("status").innerText = "Conectado ✅";
       },
-
-      onFailure: (err) => {
-        console.error("Erro:", err);
+      onFailure: function() {
+        document.getElementById("status").innerText = "Erro ao conectar ❌";
       }
     });
 
-    // 🚀 ENVIAR
-    function enviar(topico, mensagem) {
-      let msg = new Paho.MQTT.Message(mensagem);
+    function toggleLED(element, topico) {
+      if (!client.isConnected()) {
+        alert("Ainda não conectado!");
+        element.checked = !element.checked;
+        return;
+      }
+
+      const valor = element.checked ? "on" : "off";
+
+      const msg = new Paho.Message(valor);
       msg.destinationName = topico;
+
       client.send(msg);
+    }
+
+    function enviarTexto() {
+      if (!client.isConnected()) {
+        alert("Ainda não conectado!");
+        return;
+      }
+
+      const texto = document.getElementById("textoInput").value;
+
+      const msg = new Paho.Message(texto);
+      msg.destinationName = "samuel/texto";
+
+      client.send(msg);
+
+      console.log("Texto enviado:", texto);
     }
   </script>
 
