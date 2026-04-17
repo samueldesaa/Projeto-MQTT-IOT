@@ -54,7 +54,6 @@
       font-weight: bold;
     }
 
-    /* SWITCH */
     .switch {
       position: relative;
       display: inline-block;
@@ -99,7 +98,6 @@
       background-color: #ef4444;
     }
 
-    /* INPUT TEXTO */
     .input-area {
       margin-top: 20px;
     }
@@ -129,7 +127,6 @@
     button:hover {
       background: #2563eb;
     }
-
   </style>
 </head>
 
@@ -139,7 +136,6 @@
     <h2>Controle MQTT</h2>
     <p id="status">Conectando...</p>
 
-    <!-- LED VERDE -->
     <div class="card">
       <span class="label">LED Verde</span>
       <label class="switch">
@@ -148,7 +144,6 @@
       </label>
     </div>
 
-    <!-- LED VERMELHO -->
     <div class="card vermelho">
       <span class="label">LED Vermelho</span>
       <label class="switch">
@@ -157,33 +152,38 @@
       </label>
     </div>
 
-    <!-- TEXTO -->
     <div class="input-area">
       <input type="text" id="textoInput" placeholder="Digite o texto...">
       <button onclick="enviarTexto()">Enviar para Display</button>
     </div>
-
   </div>
 
   <script>
     const clientID = "samuel_" + Math.random().toString(16).substr(2, 8);
 
+    // ✅ EMQX CORRETO (WSS + /mqtt)
     const client = new Paho.Client(
       "broker.emqx.io",
       8083,
+      "/mqtt",
       clientID
     );
 
-    client.onConnectionLost = function() {
+    client.onConnectionLost = function(responseObject) {
+      console.error("Conexão perdida:", responseObject);
       document.getElementById("status").innerText = "Conexão perdida ❌";
     };
 
     client.connect({
       cleanSession: true,
+      useSSL: false,
+      timeout: 5,
       onSuccess: function() {
+        console.log("Conectado!");
         document.getElementById("status").innerText = "Conectado ✅";
       },
-      onFailure: function() {
+      onFailure: function(error) {
+        console.error("Erro ao conectar:", error);
         document.getElementById("status").innerText = "Erro ao conectar ❌";
       }
     });
@@ -201,6 +201,7 @@
       msg.destinationName = topico;
 
       client.send(msg);
+      console.log("Enviado:", topico, valor);
     }
 
     function enviarTexto() {
